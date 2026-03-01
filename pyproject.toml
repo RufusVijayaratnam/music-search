@@ -7,12 +7,15 @@ requires-python = ">=3.14"
 dependencies = [
     "numpy>=2.4.2",
     "pydantic>=2.12.5",
+    "scipy>=1.17.1",
     "stempeg>=0.2.6",
     "torch>=2.10.0",
+    "tqdm>=4.67.3",
 ]
 
 [dependency-groups]
 dev = [
     "black>=26.1.0",
     "mypy>=1.19.1",
+    "pip>=26.0.1",
 ]
