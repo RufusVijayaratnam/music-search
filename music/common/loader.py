@@ -29,8 +29,11 @@ class AudioData:
 
     def __getitem__(self, i) -> "AudioData":
         if isinstance(i, int):
-            i = [i]
+            i = slice(i, i + 1)
         return AudioData(self.mixtures[i], self.voice_mask[i], self.lengths[i])
+
+    def __len__(self) -> int:
+        return len(self.mixtures)
 
     def to(self, device: torch.device | None = None, dtype: torch.dtype | None = None):
         mixtures = self.mixtures.to(device=device, dtype=dtype)
