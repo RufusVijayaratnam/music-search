@@ -43,7 +43,7 @@ class AudioData:
 
 
 def load_audio_data(path: str, device: torch.device, dtype: torch.dtype) -> AudioData:
-    max_len = 1_000_000
+    max_len = 1_000
     files = [os.path.join(path, fp) for fp in os.listdir(path) if fp.endswith("mp4")]
 
     @dataclass
@@ -91,7 +91,7 @@ def load_audio_data(path: str, device: torch.device, dtype: torch.dtype) -> Audi
 
     mixtures = [ad.mixture for ad in audio_obs_inputs]
     voice_masks = [ad.voice_mask for ad in audio_obs_inputs]
-    lengths = torch.tensor([ad.length for ad in audio_obs_inputs], device=device, dtype=torch.long)
+    lengths = torch.IntTensor([ad.length for ad in audio_obs_inputs], device=device)
 
     mixtures_all = torch.from_numpy(np.stack(mixtures)).to(device, dtype)
     voice_masks_all = torch.from_numpy(np.stack(voice_masks)).to(device, dtype)
