@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 
+
 class Rotary(torch.nn.Module):
     def __init__(self, dim, base=10000):
         super().__init__()
@@ -25,13 +26,13 @@ class Rotary(torch.nn.Module):
 
 def rotate_half(x):
     x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
-    return torch.cat(
-        (-x2, x1), dim=x1.ndim - 1
-    )  # dim=-1 triggers a bug in torch < 1.8.0
+    return torch.cat((-x2, x1), dim=x1.ndim - 1)  # dim=-1 triggers a bug in torch < 1.8.0
+
 
 @torch.jit.script
 def apply_rotary_pos_emb(q, k, cos, sin):
     return (q * cos) + (rotate_half(q) * sin), (k * cos) + (rotate_half(k) * sin)
+
 
 class RoPEMultiHeadSelfAttention(nn.Module):
     def __init__(
@@ -50,7 +51,9 @@ class RoPEMultiHeadSelfAttention(nn.Module):
         self.tq = nn.Linear(em, em, bias=bias, **factory_kwargs)
         self.tk = nn.Linear(em, em, bias=bias, **factory_kwargs)
         self.tv = nn.Linear(em, em, bias=bias, **factory_kwargs)
-        self.output = nn.Linear(in_features=nheads * self.dk, out_features=em, bias=bias, **factory_kwargs)
+        self.output = nn.Linear(
+            in_features=nheads * self.dk, out_features=em, bias=bias, **factory_kwargs
+        )
         self.rotary = Rotary(self.dk)
 
     def sdpa(self, q, k, v):
@@ -69,7 +72,6 @@ class RoPEMultiHeadSelfAttention(nn.Module):
         cos, sin = self.rotary(q, seq_dim=2)  # seq length is n tokens?
 
         qr, kr = apply_rotary_pos_emb(q, k, cos, sin)
-        sdpa = self.sdpa(qr, kr, v) # [head, batch, n_tokens, dk]
+        sdpa = self.sdpa(qr, kr, v)  # [head, batch, n_tokens, dk]
         sdpa_cat = torch.permute(sdpa, dims=(1, 2, 0, 3)).flatten(start_dim=-2, end_dim=-1)
         return self.output(sdpa_cat)
-
