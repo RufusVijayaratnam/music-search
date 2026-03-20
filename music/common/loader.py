@@ -91,7 +91,7 @@ def load_audio_data(path: str, device: torch.device, dtype: torch.dtype) -> Audi
 
     mixtures = [ad.mixture for ad in audio_obs_inputs]
     voice_masks = [ad.voice_mask for ad in audio_obs_inputs]
-    lengths = torch.IntTensor([ad.length for ad in audio_obs_inputs], device=device)
+    lengths = torch.tensor([ad.length for ad in audio_obs_inputs], device=device)
 
     mixtures_all = torch.from_numpy(np.stack(mixtures)).to(device, dtype)
     voice_masks_all = torch.from_numpy(np.stack(voice_masks)).to(device, dtype)
