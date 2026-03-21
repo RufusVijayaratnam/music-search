@@ -1,5 +1,5 @@
 import torch
-from music.common.cnn import Conv1dArch, create_conv1d
+from music.common.cnn import Conv1dArch, create_conv1d, create_conv1d_transpose, create_conv1d_transpose_arch
 from music.common.quantiser import AbstractQuantiser, SimpleQuantiser
 from music.common.transformer import Transformer, PreNormTransformerBlock
 from music.common.attention import RoPEMultiHeadSelfAttention
@@ -58,3 +58,31 @@ def create_tokeniser_quantiser(hp: TokeniserHP) -> AbstractQuantiser:
         codebook_size=hp.codebook_size, token_dim=token_dim, device=hp.device
     )
     return simple_quantiser
+
+def create_tokeniser_decoder(hp: TokeniserHP) -> torch.nn.Module:
+    enc_conv_arch = hp.enc_conv_arch
+
+    ff_arch = MlpArchitecture(
+        hidden_sizes=[enc_conv_arch.out_channels] * hp.transformer_ff_depth,
+        activation=hp.transformer_ff_activation,
+    )
+
+    transformer_layer = create_encoder_transformer_layer(
+        transformer_model_dim=enc_conv_arch.out_channels,
+        n_tranformer_blocks=hp.n_transformer_blocks,
+        nheads=hp.transformer_nheads,
+        ff_arch=ff_arch,
+        device=hp.device,
+        dtype=hp.dtype,
+    )
+
+    dec_conv_arch = create_conv1d_transpose_arch(enc_conv_arch)
+    dec_conv_transpose = create_conv1d_transpose(dec_conv_arch)
+
+    return torch.nn.Sequential(transformer_layer, dec_conv_transpose)
+
+def create_tokeniser_networks(hp: TokeniserHP) -> tuple[torch.nn.Module, AbstractQuantiser, torch.nn.Module]:
+    encoder = create_tokeniser_encoder(hp)
+    quantiser = create_tokeniser_quantiser(hp)
+    decoder = create_tokeniser_decoder(hp)
+    return encoder, quantiser, decoder
