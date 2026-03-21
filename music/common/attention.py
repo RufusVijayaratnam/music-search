@@ -1,6 +1,6 @@
 import torch
-import numpy as np
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Rotary(torch.nn.Module):
@@ -57,21 +57,20 @@ class RoPEMultiHeadSelfAttention(nn.Module):
         self.rotary = Rotary(self.dk)
 
     def sdpa(self, q, k, v):
-        qkt = torch.einsum("hbij,hbjk->hbik", q, torch.transpose(k, -2, -1))
-        sm = torch.softmax(qkt / np.sqrt(self.dk), dim=-1)
-        attn = torch.matmul(sm, v)
-        return attn
+        # q, k, v: [batch, nheads, seq, dk]
+        return F.scaled_dot_product_attention(q, k, v)
 
     def forward(self, data: torch.Tensor) -> torch.Tensor:
-        # data: [batch, n_tokens, em]
-        q, k, v = self.tq(data), self.tk(data), self.tv(data)  # [batch, n_tokens, em]
-        q = torch.reshape(q, (*data.shape[:2], self.nheads, self.dk))
-        k = torch.reshape(k, (*data.shape[:2], self.nheads, self.dk))
-        v = torch.reshape(v, (*data.shape[:2], self.nheads, self.dk))
+        # data: [batch, seq, em]
+        b, s, _ = data.shape
+        q, k, v = self.tq(data), self.tk(data), self.tv(data)  # [batch, seq, em]
+        q = q.reshape(b, s, self.nheads, self.dk).transpose(1, 2)  # [batch, nheads, seq, dk]
+        k = k.reshape(b, s, self.nheads, self.dk).transpose(1, 2)
+        v = v.reshape(b, s, self.nheads, self.dk).transpose(1, 2)
 
-        cos, sin = self.rotary(q, seq_dim=2)  # seq length is n tokens?
+        cos, sin = self.rotary(q, seq_dim=2)  # cos/sin: [1, 1, seq, dk]
 
         qr, kr = apply_rotary_pos_emb(q, k, cos, sin)
-        sdpa = self.sdpa(qr, kr, v)  # [head, batch, n_tokens, dk]
-        sdpa_cat = torch.permute(sdpa, dims=(1, 2, 0, 3)).flatten(start_dim=-2, end_dim=-1)
-        return self.output(sdpa_cat)
+        sdpa = self.sdpa(qr, kr, v)  # [batch, nheads, seq, dk]
+        sdpa_t = sdpa.transpose(1, 2).reshape(b, s, self.nheads * self.dk)  # [batch, seq, em]
+        return self.output(sdpa_t)
