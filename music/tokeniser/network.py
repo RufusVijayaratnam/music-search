@@ -1,10 +1,17 @@
 import torch
+import torch.nn as nn
 from music.common.cnn import Conv1dArch, create_conv1d, create_conv1d_transpose, create_conv1d_transpose_arch
 from music.common.quantiser import AbstractQuantiser, SimpleQuantiser
 from music.common.transformer import Transformer, PreNormTransformerBlock
 from music.common.attention import RoPEMultiHeadSelfAttention
 from music.common.mlp import MlpArchitecture, create_mlp
 from music.tokeniser.hyperparameters import TokeniserHP
+
+
+class _Transpose12(nn.Module):
+    """Swap dims 1 and 2: [B, C, L] <-> [B, L, C]"""
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.transpose(1, 2)
 
 
 def create_encoder_conv_layer(arch: Conv1dArch):
@@ -33,7 +40,7 @@ def create_encoder_transformer_layer(
 
 def create_tokeniser_encoder(hp: TokeniserHP) -> torch.nn.Module:
     conv_arch = hp.enc_conv_arch
-    conv_layer = create_encoder_conv_layer(conv_arch)
+    conv_layer = create_encoder_conv_layer(conv_arch).to(device=hp.device)
 
     ff_arch = MlpArchitecture(
         hidden_sizes=[conv_arch.out_channels] * hp.transformer_ff_depth,
@@ -47,9 +54,9 @@ def create_tokeniser_encoder(hp: TokeniserHP) -> torch.nn.Module:
         ff_arch=ff_arch,
         device=hp.device,
         dtype=hp.dtype,
-    )
+    ).to(device=hp.device)
 
-    return torch.nn.Sequential(conv_layer, transformer_layer)
+    return torch.nn.Sequential(conv_layer, _Transpose12(), transformer_layer)
 
 
 def create_tokeniser_quantiser(hp: TokeniserHP) -> AbstractQuantiser:
@@ -57,7 +64,7 @@ def create_tokeniser_quantiser(hp: TokeniserHP) -> AbstractQuantiser:
     simple_quantiser = SimpleQuantiser(
         codebook_size=hp.codebook_size, token_dim=token_dim, device=hp.device
     )
-    return simple_quantiser
+    return simple_quantiser.to(hp.device)
 
 def create_tokeniser_decoder(hp: TokeniserHP) -> torch.nn.Module:
     enc_conv_arch = hp.enc_conv_arch
@@ -74,12 +81,12 @@ def create_tokeniser_decoder(hp: TokeniserHP) -> torch.nn.Module:
         ff_arch=ff_arch,
         device=hp.device,
         dtype=hp.dtype,
-    )
+    ).to(hp.device)
 
     dec_conv_arch = create_conv1d_transpose_arch(enc_conv_arch)
-    dec_conv_transpose = create_conv1d_transpose(dec_conv_arch)
+    dec_conv_transpose = create_conv1d_transpose(dec_conv_arch).to(hp.device)
 
-    return torch.nn.Sequential(transformer_layer, dec_conv_transpose)
+    return torch.nn.Sequential(transformer_layer, _Transpose12(), dec_conv_transpose)
 
 def create_tokeniser_networks(hp: TokeniserHP) -> tuple[torch.nn.Module, AbstractQuantiser, torch.nn.Module]:
     encoder = create_tokeniser_encoder(hp)
