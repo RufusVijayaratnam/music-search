@@ -43,7 +43,7 @@ class AudioData:
 
 
 def load_audio_data(path: str, device: torch.device, dtype: torch.dtype) -> AudioData:
-    max_len = 100
+    max_len = 1_000_000
     files = [os.path.join(path, fp) for fp in os.listdir(path) if fp.endswith("mp4")]
 
     @dataclass
@@ -63,21 +63,22 @@ def load_audio_data(path: str, device: torch.device, dtype: torch.dtype) -> Audi
         stems, _ = stempeg.read_stems(
             filepath, duration=duration, stem_id=[0, 4], info=info, dtype=np.float32
         )
-        mixture_padded = np.zeros(shape=(max_len,), dtype=np.float32)
+        mixture_padded = np.zeros(shape=(2, max_len), dtype=np.float32)
         voice_mask_padded = np.zeros(shape=(max_len,), dtype=np.float32)
-        mixture_mono = stems[0][:max_len].mean(axis=-1)
+        mixture_stereo = stems[0][:max_len].T  # [2, length]
         voice_mono = stems[1][:max_len].mean(axis=-1)
-        length = len(voice_mono)
+        length = mixture_stereo.shape[1]
 
         window = 4410
         threshold = 0.05
         rms = np.sqrt(np.maximum(uniform_filter1d(voice_mono**2, size=window), 0.0))
         voice_mask = rms > threshold
 
-        mixture_padded[:length] = mixture_mono
+        mixture_padded[:, :length] = mixture_stereo
         voice_mask_padded[:length] = voice_mask
 
         return _AudiData(mixture=mixture_padded, voice_mask=voice_mask_padded, length=length)
+
 
     _load_audio_data(files[0])
     with ThreadPool() as p:
