@@ -43,7 +43,7 @@ class AudioData:
 
 
 def load_audio_data(path: str, device: torch.device, dtype: torch.dtype) -> AudioData:
-    max_len = 1_000
+    max_len = 100
     files = [os.path.join(path, fp) for fp in os.listdir(path) if fp.endswith("mp4")]
 
     @dataclass
