@@ -19,3 +19,7 @@ dev = [
     "mypy>=1.19.1",
     "pip>=26.0.1",
 ]
+
+[tool.setuptools]
+packages = ["music", "experiments"]
+include-package-data = true
