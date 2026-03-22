@@ -1,1 +1,1 @@
-from music.common.hyper_parameters import HyperParameters
+from music.common.hyperparameters import HyperParameters

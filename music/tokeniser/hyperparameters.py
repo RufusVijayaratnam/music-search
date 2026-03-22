@@ -1,6 +1,6 @@
 from typing import Callable
 from music.common.cnn import Conv1dArch, target_tps_out_channel_conv1d_arch
-from music.common.hyper_parameters import HyperParameters
+from music.common.hyperparameters import HyperParameters
 from music.common.schedule import ConstantSchedule, Schedule
 import torch
 
