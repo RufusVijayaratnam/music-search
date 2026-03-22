@@ -5,10 +5,12 @@ from music.common.quantiser import AbstractQuantiser, QuantiserResult
 from music.tokeniser.hyperparameters import TokeniserHP
 from music.tokeniser.network import create_tokeniser_networks
 from music.tokeniser.train_params import TokeniserTrainParams
+from music.common.utils.logging import MlFlowLogger, StepScalarData
 
 
-def train_tokeniser(hp: TokeniserHP):
+def train_tokeniser(hp: TokeniserHP, logger: MlFlowLogger):
 
+    print("running")
     data = load_audio_data(
         hp.data_path, device=torch.device("cpu"), dtype=hp.dtype
     )  # keep full data on cpu
@@ -33,6 +35,7 @@ def train_tokeniser(hp: TokeniserHP):
         data=data,
         train_params=train_params,
         hp=hp,
+        logger=logger,
     )
 
 
@@ -43,6 +46,7 @@ def train_loop(
     data: AudioData,
     train_params: TokeniserTrainParams,
     hp: TokeniserHP,
+    logger: MlFlowLogger,
 ):
     batch = data.sample_batch(hp.batch_size, hp.window_len).to(
         hp.device
@@ -55,7 +59,7 @@ def train_loop(
                 hp.device
             )  # sample and move to device
 
-        total_loss = train_step(
+        log_data_dict = train_step(
             encoder=encoder,
             quantiser=quantiser,
             decoder=decoder,
@@ -63,7 +67,7 @@ def train_loop(
             train_params=train_params,
             hp=hp,
         )
-        print(f"Loss: {total_loss}")
+        logger.log_scalars([StepScalarData(step=update_step, data=log_data_dict)])
 
 
 def train_step(
@@ -74,12 +78,18 @@ def train_step(
     train_params: TokeniserTrainParams,
     hp: TokeniserHP,
 ):
-    real_total_loss = 0
     train_params.optimiser.zero_grad()
     mini_batch_size = len(batch) // hp.grad_accumulate_steps
+    rec_loss_total: float = 0
+    cdb_loss_total: float = 0
+    cmt_loss_total: float = 0
     rec_loss_w = train_params.rec_loss_weight.get_value()
     cmt_loss_w = train_params.commitment_loss_weight.get_value()
     cdb_loss_w = train_params.codebook_loss_weight.get_value()
+    log_data = {}
+    log_data.update({'loss/rec_loss_weight': rec_loss_w})
+    log_data.update({'loss/cmt_loss_weight': cmt_loss_w})
+    log_data.update({'loss/cdb_loss_weight': cdb_loss_w})
     for i in range(hp.grad_accumulate_steps):
         mini_batch = batch[i * mini_batch_size : i * mini_batch_size + mini_batch_size]
         encoded = encoder(mini_batch.mixtures)
@@ -89,13 +99,23 @@ def train_step(
         quantised = torch.reshape(quantised_res.quantised, (b, s, -1))
         decoded = decoder(quantised)[..., : mini_batch.mixtures.shape[-1]]
         rec_loss = torch.norm(decoded - mini_batch.mixtures, dim=-1).mean()
-        commitment_loss = quantised_res.commitment_loss
-        codebook_loss = quantised_res.codebook_loss
+        cmt_loss = quantised_res.commitment_loss
+        cdb_loss = quantised_res.codebook_loss
         total_loss = (
-            rec_loss * rec_loss_w + commitment_loss * cmt_loss_w + codebook_loss * cdb_loss_w
+            rec_loss * rec_loss_w + cmt_loss * cmt_loss_w + cdb_loss * cdb_loss_w
         )
         total_loss /= hp.grad_accumulate_steps
         total_loss.backward()
-        real_total_loss += total_loss.item()
+
+        rec_loss_total += rec_loss.item() / hp.grad_accumulate_steps
+        cmt_loss_total += cmt_loss.item() / hp.grad_accumulate_steps
+        cdb_loss_total += cdb_loss.item() / hp.grad_accumulate_steps
+
+    # step curriculums
     train_params.step()
-    return real_total_loss
+
+    # logging
+    log_data.update({'rec_loss': rec_loss_total})
+    log_data.update({'cmt_loss': cmt_loss_total})
+    log_data.update({'cdb_loss': cdb_loss_total})
+    return log_data
