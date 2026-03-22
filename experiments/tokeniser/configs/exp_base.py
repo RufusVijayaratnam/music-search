@@ -4,6 +4,7 @@ from typing import Callable
 from music.common.cnn import Conv1dArch, target_tps_out_channel_conv1d_arch
 import torch
 
+
 def make_tokeniser_hp(
     rec_loss_weight: Schedule,
     commitment_loss_weight: Schedule,
@@ -26,7 +27,7 @@ def make_tokeniser_hp(
     device: torch.device,
     dtype: torch.dtype,
 ):
-    
+
     hp = TokeniserHP(
         rec_loss_weight=rec_loss_weight,
         commitment_loss_weight=commitment_loss_weight,
@@ -51,6 +52,7 @@ def make_tokeniser_hp(
     )
     return hp
 
+
 def base_exp(
     rec_loss_weight: Schedule = ConstantSchedule(start_value=1.0),
     commitment_loss_weight: Schedule = ConstantSchedule(start_value=0.25),
@@ -63,7 +65,11 @@ def base_exp(
     codebook_size: int = 1024,
     num_codebooks: int = 12,
     enc_conv_arch: Conv1dArch = target_tps_out_channel_conv1d_arch(
-        sample_rate=41000, target_tps=50, in_channels=2, out_channels=128, n_layers=3,
+        sample_rate=41000,
+        target_tps=50,
+        in_channels=2,
+        out_channels=128,
+        n_layers=3,
     ),
     data_path: str = "./data/train",
     update_steps: int = 1000,
@@ -98,8 +104,9 @@ def base_exp(
         dtype=dtype,
     )
 
+
 def experiments():
     exp_dict = {}
-    exp_dict['base'] = base_exp
+    exp_dict["base"] = base_exp
 
     return exp_dict

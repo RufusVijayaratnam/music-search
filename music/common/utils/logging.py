@@ -8,9 +8,11 @@ class StepScalarData:
     step: int
     data: dict[str, float]
 
+
 class MlFlowLogger:
     def __init__(self, exp: str):
         import mlflow
+
         self._mlflow = mlflow
         self._exp = exp
 
