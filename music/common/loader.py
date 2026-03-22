@@ -15,7 +15,13 @@ class AudioData:
     lengths: torch.Tensor
     device: torch.device
 
-    def __init__(self, mixtures: torch.Tensor, voice_mask: torch.Tensor, lengths: torch.Tensor, device: torch.device):
+    def __init__(
+        self,
+        mixtures: torch.Tensor,
+        voice_mask: torch.Tensor,
+        lengths: torch.Tensor,
+        device: torch.device,
+    ):
         if voice_mask.device != mixtures.device:
             raise ValueError(
                 f"voice_mask device ({voice_mask.device}) must be the same as mixtures device ({mixtures.device})"
@@ -47,24 +53,28 @@ class AudioData:
         num_tracks = self.mixtures.shape[0]
         min_len = int(torch.min(self.lengths).item())
         if min_len < window_len:
-            raise ValueError(f"Can't have window len longer than a track, min track len is {min_len}")
-        
+            raise ValueError(
+                f"Can't have window len longer than a track, min track len is {min_len}"
+            )
+
         track_indices = torch.randint(0, num_tracks, size=(batch_size,), device=self.device)
         track_lengths = self.lengths[track_indices]
         max_starts = torch.clamp(track_lengths - window_len, min=0)
         rand_vals = torch.rand(batch_size, device=self.device)
         start_indices = (rand_vals * max_starts.float()).long()
-        
+
         offsets = self.mixtures.offsets()
         flat_starts = offsets[track_indices] + start_indices
-        
+
         flat_indices = flat_starts.unsqueeze(1) + torch.arange(window_len, device=self.device)
         flat_indices = flat_indices.reshape(-1)
-        
+
         _, channels, _ = self.mixtures.shape
         mixtures_values = self.mixtures.values()  # [channels, total_samples]
         mixtures_indexed = mixtures_values[:, flat_indices]  # [channels, batch_size * window_len]
-        mixtures_flat = mixtures_indexed.reshape(channels, batch_size, window_len).permute(1, 0, 2)  # [batch_size, channels, window_len]
+        mixtures_flat = mixtures_indexed.reshape(channels, batch_size, window_len).permute(
+            1, 0, 2
+        )  # [batch_size, channels, window_len]
         voice_masks_flat = self.voice_mask.values()[flat_indices].reshape(batch_size, window_len)
 
         return AudioData(mixtures_flat, voice_masks_flat, track_lengths, self.device)
@@ -111,8 +121,12 @@ def load_audio_data(path: str, device: torch.device, dtype: torch.dtype) -> Audi
             )
         )
 
-    mixtures = torch.nested.nested_tensor([ad.mixture for ad in audio_obs_inputs], layout=torch.jagged)
-    voice_masks = torch.nested.nested_tensor([ad.voice_mask for ad in audio_obs_inputs], layout=torch.jagged)
+    mixtures = torch.nested.nested_tensor(
+        [ad.mixture for ad in audio_obs_inputs], layout=torch.jagged
+    )
+    voice_masks = torch.nested.nested_tensor(
+        [ad.voice_mask for ad in audio_obs_inputs], layout=torch.jagged
+    )
     lengths = torch.tensor([ad.length for ad in audio_obs_inputs], device=device)
 
     return AudioData(mixtures, voice_masks, lengths, device=device)

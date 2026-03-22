@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, PrivateAttr
 
+
 class Schedule(BaseModel, ABC):
     start_value: float
     curr_step: int = 0
@@ -16,6 +17,7 @@ class Schedule(BaseModel, ABC):
 
     def get_value(self) -> float:
         return self._curr
+
 
 class ConstantSchedule(Schedule):
     def step(self) -> None:

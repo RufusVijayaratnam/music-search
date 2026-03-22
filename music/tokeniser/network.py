@@ -1,7 +1,12 @@
 import torch
 import torch.nn as nn
-from music.common.cnn import Conv1dArch, create_conv1d, create_conv1d_transpose, create_conv1d_transpose_arch
-from music.common.quantiser import AbstractQuantiser, SimpleQuantiser
+from music.common.cnn import (
+    Conv1dArch,
+    create_conv1d,
+    create_conv1d_transpose,
+    create_conv1d_transpose_arch,
+)
+from music.common.quantiser import AbstractQuantiser, ResidualVectorQuantiser
 from music.common.transformer import Transformer, PreNormTransformerBlock
 from music.common.attention import RoPEMultiHeadSelfAttention
 from music.common.mlp import MlpArchitecture, create_mlp
@@ -10,6 +15,7 @@ from music.tokeniser.hyperparameters import TokeniserHP
 
 class _Transpose12(nn.Module):
     """Swap dims 1 and 2: [B, C, L] <-> [B, L, C]"""
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x.transpose(1, 2)
 
@@ -61,10 +67,14 @@ def create_tokeniser_encoder(hp: TokeniserHP) -> torch.nn.Module:
 
 def create_tokeniser_quantiser(hp: TokeniserHP) -> AbstractQuantiser:
     token_dim = hp.enc_conv_arch.out_channels
-    simple_quantiser = SimpleQuantiser(
-        codebook_size=hp.codebook_size, token_dim=token_dim, device=hp.device
+    simple_quantiser = ResidualVectorQuantiser(
+        codebook_size=hp.codebook_size,
+        token_dim=token_dim,
+        num_codebooks=hp.num_codebooks,
+        device=hp.device,
     )
     return simple_quantiser.to(hp.device)
+
 
 def create_tokeniser_decoder(hp: TokeniserHP) -> torch.nn.Module:
     enc_conv_arch = hp.enc_conv_arch
@@ -88,7 +98,10 @@ def create_tokeniser_decoder(hp: TokeniserHP) -> torch.nn.Module:
 
     return torch.nn.Sequential(transformer_layer, _Transpose12(), dec_conv_transpose)
 
-def create_tokeniser_networks(hp: TokeniserHP) -> tuple[torch.nn.Module, AbstractQuantiser, torch.nn.Module]:
+
+def create_tokeniser_networks(
+    hp: TokeniserHP,
+) -> tuple[torch.nn.Module, AbstractQuantiser, torch.nn.Module]:
     encoder = create_tokeniser_encoder(hp)
     quantiser = create_tokeniser_quantiser(hp)
     decoder = create_tokeniser_decoder(hp)

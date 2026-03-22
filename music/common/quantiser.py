@@ -47,3 +47,29 @@ class SimpleQuantiser(AbstractQuantiser):
         # straight through for gradients, pretend encoder output zq directly
         qst: torch.Tensor = x + (quantised - x).detach()
         return QuantiserResult(quantised=qst, codebook_loss=codebook, commitment_loss=commitment)
+
+
+class ResidualVectorQuantiser(AbstractQuantiser):
+    def __init__(
+        self, codebook_size: int, token_dim: int, num_codebooks: int, device: torch.device
+    ):
+        super().__init__(codebook_size, token_dim, device)
+        self.num_codebooks = num_codebooks
+        self.simple_quants = torch.nn.ModuleList(
+            [SimpleQuantiser(codebook_size, token_dim, device) for _ in range(num_codebooks)]
+        )
+
+    def forward(self, x: torch.Tensor) -> QuantiserResult:
+        cb_loss = 0
+        cmt_loss = 0
+        residual = x
+        quantised_out = torch.zeros_like(x)
+        for sq in self.simple_quants:
+            res = sq(residual)
+            quantised_out = quantised_out + res.quantised
+            residual = x - quantised_out.detach()
+            cb_loss += res.codebook_loss
+            cmt_loss += res.commitment_loss
+        return QuantiserResult(
+            quantised=quantised_out, codebook_loss=cb_loss, commitment_loss=cmt_loss
+        )
