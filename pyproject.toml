@@ -24,3 +24,6 @@ dev = [
 [tool.setuptools]
 packages = ["music", "experiments"]
 include-package-data = true
+
+[tool.black]
+line-length = 100
