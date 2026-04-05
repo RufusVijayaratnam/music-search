@@ -51,7 +51,11 @@ class SimpleQuantiser(AbstractQuantiser):
 
 class ResidualVectorQuantiser(AbstractQuantiser):
     def __init__(
-        self, codebook_size: int, token_dim: int, num_codebooks: int, device: torch.device
+        self,
+        codebook_size: int,
+        token_dim: int,
+        num_codebooks: int,
+        device: torch.device,
     ):
         super().__init__(codebook_size, token_dim, device)
         self.num_codebooks = num_codebooks
